@@ -34,12 +34,12 @@
 </head>
 <body>
 
-<div id="loadingScreen">🛡️ Security Shield Loading...</div>
+<div id="loadingScreen">🛡️ Initializing App...</div>
 
 <div id="blockScreen">
-    <i class="fa-solid fa-lock" style="font-size: 80px; margin-bottom: 20px;"></i>
+    <i class="fa-solid fa-earth-americas" style="font-size: 80px; margin-bottom: 20px;"></i>
     <h1 style="font-weight: 800;">ACCESS DENIED</h1>
-    <p id="blockMsg" style="margin-top: 15px; font-weight: 600;">VPN is required or this country is blocked.</p>
+    <p style="margin-top: 15px; font-weight: 600;">VPN connection required or country blocked.</p>
 </div>
 
 <div class="app-container" id="mainApp">
@@ -56,10 +56,7 @@
                 <div id="uLimits" style="font-size: 10px; color: #FF005C; font-weight: bold;">T1: 0/0 | T2: 0/0</div>
             </div>
         </div>
-        <div class="wallet-card">
-            <small>Wallet</small>
-            <div id="uBalance">0.00</div>
-        </div>
+        <div class="wallet-card"><small>Wallet</small><div id="uBalance">0.00</div></div>
     </div>
 
     <div class="menu-grid">
@@ -106,23 +103,17 @@
     let uid = tg.initDataUnsafe?.user?.id.toString() || "test_user";
     let settings = {}, userData = {}, isWaiting = false, currentTask = "1";
 
-    // --- Hard-Line Security System ---
     async function checkSecurity() {
         try {
             const vSnap = await db.collection("settings").doc("vpn").get();
             const vData = vSnap.data();
-
             if (vData && vData.status === "ON") {
-                // Cloudflare Detection (High Accuracy)
                 const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
                 const match = cf.match(/loc=([A-Z]{2})/);
-                const userCountry = match ? match[1] : "";
-                
-                const allowed = vData.allowed.split(',');
-
-                if (!allowed.includes(userCountry)) {
-                    document.getElementById('blockScreen').style.display = 'flex';
+                const userCC = match ? match[1] : "";
+                if (!vData.allowed.split(',').includes(userCC)) {
                     document.getElementById('loadingScreen').style.display = 'none';
+                    document.getElementById('blockScreen').style.display = 'flex';
                     return;
                 }
             }
@@ -130,19 +121,9 @@
             document.getElementById('mainApp').style.display = 'flex';
             initApp();
         } catch (e) {
-            // Backup detection
-            try {
-                const res = await fetch('https://ipapi.co/country/');
-                const userCC = await res.text();
-                const vSnap = await db.collection("settings").doc("vpn").get();
-                if(vSnap.data().allowed.includes(userCC.trim().toUpperCase())) {
-                    document.getElementById('loadingScreen').style.display = 'none';
-                    document.getElementById('mainApp').style.display = 'flex';
-                    initApp();
-                } else { throw new Error("Blocked"); }
-            } catch(e2) {
-                document.getElementById('blockScreen').style.display = 'flex';
-            }
+            document.getElementById('mainApp').style.display = 'flex';
+            document.getElementById('loadingScreen').style.display = 'none';
+            initApp();
         }
     }
 
@@ -169,7 +150,6 @@
         const count = taskNum === '1' ? (userData.adCount1||0) : (userData.adCount2||0);
         const limit = taskNum === '1' ? settings.limit1 : settings.limit2;
         if(count >= limit) return alert("Limit Reached!");
-
         if ((userData.viewProgress||0) >= settings.clickAfter) {
             document.getElementById('modalNotice').innerText = settings.clickNotice;
             document.getElementById('clickModal').style.display = 'flex';
@@ -182,15 +162,22 @@
         countBox.style.display = 'block';
         const zoneId = taskNum === '1' ? settings.zone1 : settings.zone2;
         
-        const scriptId = 'monetag-sdk-' + zoneId;
-        if (!document.getElementById(scriptId)) {
-            const s = document.createElement('script');
-            s.id = scriptId; s.src = '//libtl.com/sdk.js';
-            s.setAttribute('data-zone', zoneId);
-            s.setAttribute('data-sdk', 'show_' + zoneId);
-            document.head.appendChild(s);
-            s.onload = () => { triggerAd(zoneId); };
-        } else { triggerAd(zoneId); }
+        // --- Monetag 8-Digit Fix ---
+        const oldScript = document.getElementById('monetag-script');
+        if(oldScript) oldScript.remove();
+        
+        const s = document.createElement('script');
+        s.id = 'monetag-script';
+        s.src = '//libtl.com/sdk.js';
+        s.setAttribute('data-zone', zoneId);
+        s.setAttribute('data-sdk', 'show_' + zoneId);
+        document.head.appendChild(s);
+        
+        s.onload = () => {
+            if(window['show_'+zoneId]) {
+                window['show_'+zoneId]().catch(e => console.log("Ad Blocked"));
+            }
+        };
 
         let total = 20;
         const timer = setInterval(() => {
@@ -203,13 +190,6 @@
             }
             total--;
         }, 1000);
-    }
-
-    function triggerAd(zoneId) {
-        const funcName = 'show_' + zoneId;
-        if (typeof window[funcName] === 'function') {
-            window[funcName]().catch(e => console.error(e));
-        }
     }
 
     function updateDB(t, c) {
