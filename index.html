@@ -34,12 +34,12 @@
 </head>
 <body>
 
-<div id="loadingScreen">🛡️ Initializing App...</div>
+<div id="loadingScreen">🛡️ Securely Loading Account...</div>
 
 <div id="blockScreen">
     <i class="fa-solid fa-earth-americas" style="font-size: 80px; margin-bottom: 20px;"></i>
     <h1 style="font-weight: 800;">ACCESS DENIED</h1>
-    <p style="margin-top: 15px; font-weight: 600;">VPN connection required or country blocked.</p>
+    <p style="margin-top: 15px;">Region Restricted. Please use a supported country to earn.</p>
 </div>
 
 <div class="app-container" id="mainApp">
@@ -78,9 +78,9 @@
 
 <div id="clickModal">
     <div class="modal-box">
-        <h2 style="color:#FF005C">Warning!</h2>
+        <h2 style="color:#FF005C">Notice!</h2>
         <p id="modalNotice" style="margin-top:10px;"></p>
-        <button onclick="document.getElementById('clickModal').style.display='none'; runProcess(currentTask, true);" style="background:#10b981; color:white; padding:15px; width:100%; border:none; border-radius:15px; margin-top:20px; font-weight:800;">Open Ad & Click</button>
+        <button onclick="document.getElementById('clickModal').style.display='none'; runProcess(activeTask, true);" style="background:#10b981; color:white; padding:15px; width:100%; border:none; border-radius:15px; margin-top:20px; font-weight:800;">Show Ad & Click</button>
     </div>
 </div>
 
@@ -100,8 +100,19 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    let uid = tg.initDataUnsafe?.user?.id.toString() || "test_user";
-    let settings = {}, userData = {}, isWaiting = false, currentTask = "1";
+    // ইউজারের স্থায়ী টেলিগ্রাম আইডি
+    let uid = tg.initDataUnsafe?.user?.id.toString() || "test_user_001";
+    let settings = {}, userData = {}, isWaiting = false, activeTask = "1";
+
+    function updateUIText() {
+        if(userData && settings) {
+            document.getElementById('uLimits').innerText = `T1: ${userData.adCount1||0}/${settings.limit1||0} | T2: ${userData.adCount2||0}/${settings.limit2||0}`;
+            document.getElementById('uBalance').innerText = (userData.balance || 0).toFixed(2);
+            document.getElementById('topBdt').innerText = (userData.balance || 0).toFixed(2);
+            document.getElementById('uName').innerText = tg.initDataUnsafe?.user?.first_name || "Guest";
+            if(tg.initDataUnsafe?.user?.photo_url) document.getElementById('uPic').src = tg.initDataUnsafe?.user?.photo_url;
+        }
+    }
 
     async function checkSecurity() {
         try {
@@ -109,8 +120,7 @@
             const vData = vSnap.data();
             if (vData && vData.status === "ON") {
                 const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
-                const match = cf.match(/loc=([A-Z]{2})/);
-                const userCC = match ? match[1] : "";
+                const userCC = cf.match(/loc=([A-Z]{2})/)[1];
                 if (!vData.allowed.split(',').includes(userCC)) {
                     document.getElementById('loadingScreen').style.display = 'none';
                     document.getElementById('blockScreen').style.display = 'flex';
@@ -128,14 +138,10 @@
     }
 
     function initApp() {
-        db.collection("settings").doc("ads").onSnapshot(doc => settings = doc.data());
+        db.collection("settings").doc("ads").onSnapshot(doc => { settings = doc.data(); updateUIText(); });
         db.collection("users").doc(uid).onSnapshot(doc => {
-            if(doc.exists) {
-                userData = doc.data();
-                document.getElementById('uBalance').innerText = userData.balance.toFixed(2);
-                document.getElementById('topBdt').innerText = userData.balance.toFixed(2);
-                document.getElementById('uLimits').innerText = `T1: ${userData.adCount1||0}/${settings.limit1||0} | T2: ${userData.adCount2||0}/${settings.limit2||0}`;
-            } else { db.collection("users").doc(uid).set({balance:0, adCount1:0, adCount2:0, viewProgress:0}); }
+            if(doc.exists) { userData = doc.data(); updateUIText(); }
+            else { db.collection("users").doc(uid).set({balance:0, adCount1:0, adCount2:0, viewProgress:0}); }
         });
     }
 
@@ -146,38 +152,50 @@
 
     function handleAdClick(taskNum) {
         if(isWaiting) return;
-        currentTask = taskNum;
+        activeTask = taskNum;
         const count = taskNum === '1' ? (userData.adCount1||0) : (userData.adCount2||0);
-        const limit = taskNum === '1' ? settings.limit1 : settings.limit2;
-        if(count >= limit) return alert("Limit Reached!");
-        if ((userData.viewProgress||0) >= settings.clickAfter) {
+        const limit = taskNum === '1' ? (settings.limit1||0) : (settings.limit2||0);
+        const zoneId = taskNum === '1' ? settings.zone1 : settings.zone2;
+
+        if(!zoneId) return alert("Ads are not configured yet!");
+        if(count >= limit) return alert("Daily Limit Reached!");
+
+        if ((userData.viewProgress||0) >= (settings.clickAfter||3)) {
             document.getElementById('modalNotice').innerText = settings.clickNotice;
             document.getElementById('clickModal').style.display = 'flex';
         } else { runProcess(taskNum, false); }
     }
 
     function runProcess(taskNum, isClick) {
-        isWaiting = true;
-        const countBox = document.getElementById('countdownBox');
-        countBox.style.display = 'block';
         const zoneId = taskNum === '1' ? settings.zone1 : settings.zone2;
-        
-        // --- Monetag 8-Digit Fix ---
         const oldScript = document.getElementById('monetag-script');
         if(oldScript) oldScript.remove();
         
         const s = document.createElement('script');
-        s.id = 'monetag-script';
-        s.src = '//libtl.com/sdk.js';
+        s.id = 'monetag-script'; s.src = '//libtl.com/sdk.js';
         s.setAttribute('data-zone', zoneId);
         s.setAttribute('data-sdk', 'show_' + zoneId);
         document.head.appendChild(s);
         
         s.onload = () => {
-            if(window['show_'+zoneId]) {
-                window['show_'+zoneId]().catch(e => console.log("Ad Blocked"));
-            }
+            const adFuncName = 'show_' + zoneId;
+            if(window[adFuncName]) {
+                window[adFuncName]().then(() => {
+                    // যদি অ্যাড সফলভাবে দেখায়, তবেই টাইমার শুরু হবে
+                    startTimer(taskNum, isClick);
+                }).catch(() => {
+                    alert("Failed to show Ad. Please try again or disable Ad-Blocker!");
+                });
+            } else { alert("Ad script not ready. Try again!"); }
         };
+    }
+
+    function startTimer(taskNum, isClick) {
+        isWaiting = true;
+        const btn1 = document.getElementById('btnT1'), btn2 = document.getElementById('btnT2');
+        btn1.classList.add('disabled'); btn2.classList.add('disabled');
+        const countBox = document.getElementById('countdownBox');
+        countBox.style.display = 'block';
 
         let total = 20;
         const timer = setInterval(() => {
@@ -187,13 +205,14 @@
                 countBox.innerText = `✅ Success! Wait ${total}s`;
             } else {
                 clearInterval(timer); countBox.style.display = 'none'; isWaiting = false;
+                btn1.classList.remove('disabled'); btn2.classList.remove('disabled');
             }
             total--;
         }, 1000);
     }
 
     function updateDB(t, c) {
-        let up = { balance: firebase.firestore.FieldValue.increment(settings.reward) };
+        let up = { balance: firebase.firestore.FieldValue.increment(settings.reward || 0) };
         if(t === '1') up.adCount1 = firebase.firestore.FieldValue.increment(1);
         else up.adCount2 = firebase.firestore.FieldValue.increment(1);
         up.viewProgress = c ? 0 : firebase.firestore.FieldValue.increment(1);
