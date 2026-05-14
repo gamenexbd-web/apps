@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Crypto Boss</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background: #FF005C; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .app-container { width: 100%; max-width: 414px; height: 95vh; background: #FFECF2; border-radius: 40px; position: relative; overflow: hidden; display: none; flex-direction: column; }
+        header { padding: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .bdt-badge { background: #E91E63; color: white; padding: 8px 18px; border-radius: 50px; font-weight: 700; font-size: 14px; }
+        .profile-section { background: white; margin: 0 20px; padding: 15px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
+        .avatar { width: 55px; height: 55px; border-radius: 15px; border: 2px solid #FF005C; }
+        .wallet-card { background: linear-gradient(135deg, #FF005C, #C2185B); color: white; padding: 10px 20px; border-radius: 15px; text-align: center; }
+        .menu-grid { flex: 1; padding: 25px 20px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; overflow-y: auto; }
+        .menu-item { background: white; border-radius: 25px; padding: 25px 10px; text-align: center; cursor: pointer; transition: 0.3s; border: 1px solid rgba(255,0,92,0.05); }
+        .menu-item i { font-size: 32px; color: #FF005C; margin-bottom: 12px; display: block; }
+        .page-overlay { position: absolute; inset: 0; background: #FFECF2; z-index: 100; padding: 25px; display: none; flex-direction: column; }
+        .back-btn { font-size: 18px; font-weight: 800; color: #333; cursor: pointer; margin-bottom: 25px; }
+        .task-option { background: white; padding: 25px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 15px; }
+        .task-option.disabled { opacity: 0.5; pointer-events: none; }
+        #blockScreen { position: fixed; inset: 0; background: #FF005C; color: white; z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 30px; }
+        #loadingScreen { position: fixed; inset: 0; background: #FFECF2; z-index: 8888; display: flex; justify-content: center; align-items: center; font-weight: 800; color: #FF005C; }
+        #countdownBox { font-size: 14px; color: #FF005C; font-weight: 800; text-align: center; margin-top: 15px; padding: 15px; background: white; border-radius: 15px; }
+        #clickModal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 5000; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .modal-box { background: white; padding: 30px; border-radius: 30px; text-align: center; width: 100%; max-width: 350px; color: #333; }
+    </style>
+</head>
+<body>
+
+<div id="loadingScreen">🛡️ Security Shield Loading...</div>
+
+<div id="blockScreen">
+    <i class="fa-solid fa-lock" style="font-size: 80px; margin-bottom: 20px;"></i>
+    <h1 style="font-weight: 800;">ACCESS DENIED</h1>
+    <p id="blockMsg" style="margin-top: 15px; font-weight: 600;">VPN is required or this country is blocked.</p>
+</div>
+
+<div class="app-container" id="mainApp">
+    <header>
+        <div style="font-weight: 800; color: #FF005C; font-size: 20px;">Crypto Boss</div>
+        <div class="bdt-badge">৳ <span id="topBdt">0.00</span></div>
+    </header>
+
+    <div class="profile-section">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" style="width:50px; height:50px; border-radius:12px; border:2px solid #FF005C;" id="uPic">
+            <div>
+                <div style="font-weight: 800; font-size: 16px;" id="uName">User</div>
+                <div id="uLimits" style="font-size: 10px; color: #FF005C; font-weight: bold;">T1: 0/0 | T2: 0/0</div>
+            </div>
+        </div>
+        <div class="wallet-card">
+            <small>Wallet</small>
+            <div id="uBalance">0.00</div>
+        </div>
+    </div>
+
+    <div class="menu-grid">
+        <div class="menu-item" onclick="openPage('taskPage')"><i class="fa-solid fa-circle-play"></i><span>Start Task</span></div>
+        <div class="menu-item"><i class="fa-solid fa-crown"></i><span>Top User</span></div>
+        <div class="menu-item"><i class="fa-solid fa-user-gear"></i><span>Profile</span></div>
+        <div class="menu-item"><i class="fa-solid fa-wallet"></i><span>Withdraw</span></div>
+        <div class="menu-item"><i class="fa-solid fa-headset"></i><span>Support</span></div>
+        <div class="menu-item"><i class="fa-solid fa-clock-rotate-left"></i><span>History</span></div>
+    </div>
+
+    <div id="taskPage" class="page-overlay">
+        <div class="back-btn" onclick="closePage('taskPage')"><i class="fa-solid fa-arrow-left"></i> Start Task</div>
+        <div class="task-option" id="btnT1" onclick="handleAdClick('1')"><span>Task One</span><span>Play</span></div>
+        <div class="task-option" id="btnT2" onclick="handleAdClick('2')"><span>Task Two</span><span>Play</span></div>
+        <div id="countdownBox" style="display:none;"></div>
+    </div>
+</div>
+
+<div id="clickModal">
+    <div class="modal-box">
+        <h2 style="color:#FF005C">Warning!</h2>
+        <p id="modalNotice" style="margin-top:10px;"></p>
+        <button onclick="document.getElementById('clickModal').style.display='none'; runProcess(currentTask, true);" style="background:#10b981; color:white; padding:15px; width:100%; border:none; border-radius:15px; margin-top:20px; font-weight:800;">Open Ad & Click</button>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDwb7L54loH0F6p7v-eaiiOFZte0jrkHX0",
+      authDomain: "crytpo-boss.firebaseapp.com",
+      databaseURL: "https://crytpo-boss-default-rtdb.firebaseio.com",
+      projectId: "crytpo-boss",
+      storageBucket: "crytpo-boss.firebasestorage.app",
+      messagingSenderId: "206040628144",
+      appId: "1:206040628144:web:38946d74403b835b7e3475",
+      measurementId: "G-23C2X8KYK5"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    let uid = tg.initDataUnsafe?.user?.id.toString() || "test_user";
+    let settings = {}, userData = {}, isWaiting = false, currentTask = "1";
+
+    // --- Hard-Line Security System ---
+    async function checkSecurity() {
+        try {
+            const vSnap = await db.collection("settings").doc("vpn").get();
+            const vData = vSnap.data();
+
+            if (vData && vData.status === "ON") {
+                // Cloudflare Detection (High Accuracy)
+                const cf = await fetch('https://www.cloudflare.com/cdn-cgi/trace').then(r => r.text());
+                const match = cf.match(/loc=([A-Z]{2})/);
+                const userCountry = match ? match[1] : "";
+                
+                const allowed = vData.allowed.split(',');
+
+                if (!allowed.includes(userCountry)) {
+                    document.getElementById('blockScreen').style.display = 'flex';
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    return;
+                }
+            }
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'flex';
+            initApp();
+        } catch (e) {
+            // Backup detection
+            try {
+                const res = await fetch('https://ipapi.co/country/');
+                const userCC = await res.text();
+                const vSnap = await db.collection("settings").doc("vpn").get();
+                if(vSnap.data().allowed.includes(userCC.trim().toUpperCase())) {
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    document.getElementById('mainApp').style.display = 'flex';
+                    initApp();
+                } else { throw new Error("Blocked"); }
+            } catch(e2) {
+                document.getElementById('blockScreen').style.display = 'flex';
+            }
+        }
+    }
+
+    function initApp() {
+        db.collection("settings").doc("ads").onSnapshot(doc => settings = doc.data());
+        db.collection("users").doc(uid).onSnapshot(doc => {
+            if(doc.exists) {
+                userData = doc.data();
+                document.getElementById('uBalance').innerText = userData.balance.toFixed(2);
+                document.getElementById('topBdt').innerText = userData.balance.toFixed(2);
+                document.getElementById('uLimits').innerText = `T1: ${userData.adCount1||0}/${settings.limit1||0} | T2: ${userData.adCount2||0}/${settings.limit2||0}`;
+            } else { db.collection("users").doc(uid).set({balance:0, adCount1:0, adCount2:0, viewProgress:0}); }
+        });
+    }
+
+    checkSecurity();
+
+    function openPage(id) { document.getElementById(id).style.display = 'flex'; }
+    function closePage(id) { document.getElementById(id).style.display = 'none'; }
+
+    function handleAdClick(taskNum) {
+        if(isWaiting) return;
+        currentTask = taskNum;
+        const count = taskNum === '1' ? (userData.adCount1||0) : (userData.adCount2||0);
+        const limit = taskNum === '1' ? settings.limit1 : settings.limit2;
+        if(count >= limit) return alert("Limit Reached!");
+
+        if ((userData.viewProgress||0) >= settings.clickAfter) {
+            document.getElementById('modalNotice').innerText = settings.clickNotice;
+            document.getElementById('clickModal').style.display = 'flex';
+        } else { runProcess(taskNum, false); }
+    }
+
+    function runProcess(taskNum, isClick) {
+        isWaiting = true;
+        const countBox = document.getElementById('countdownBox');
+        countBox.style.display = 'block';
+        const zoneId = taskNum === '1' ? settings.zone1 : settings.zone2;
+        
+        const scriptId = 'monetag-sdk-' + zoneId;
+        if (!document.getElementById(scriptId)) {
+            const s = document.createElement('script');
+            s.id = scriptId; s.src = '//libtl.com/sdk.js';
+            s.setAttribute('data-zone', zoneId);
+            s.setAttribute('data-sdk', 'show_' + zoneId);
+            document.head.appendChild(s);
+            s.onload = () => { triggerAd(zoneId); };
+        } else { triggerAd(zoneId); }
+
+        let total = 20;
+        const timer = setInterval(() => {
+            if (total > 2) { countBox.innerText = isClick ? `👉 Click & Wait ${total-2}s` : `⏳ Ad Running... Reward in ${total-2}s`; }
+            else if (total <= 2 && total > 0) {
+                if(total === 2) updateDB(taskNum, isClick);
+                countBox.innerText = `✅ Success! Wait ${total}s`;
+            } else {
+                clearInterval(timer); countBox.style.display = 'none'; isWaiting = false;
+            }
+            total--;
+        }, 1000);
+    }
+
+    function triggerAd(zoneId) {
+        const funcName = 'show_' + zoneId;
+        if (typeof window[funcName] === 'function') {
+            window[funcName]().catch(e => console.error(e));
+        }
+    }
+
+    function updateDB(t, c) {
+        let up = { balance: firebase.firestore.FieldValue.increment(settings.reward) };
+        if(t === '1') up.adCount1 = firebase.firestore.FieldValue.increment(1);
+        else up.adCount2 = firebase.firestore.FieldValue.increment(1);
+        up.viewProgress = c ? 0 : firebase.firestore.FieldValue.increment(1);
+        db.collection("users").doc(uid).update(up);
+    }
+</script>
+</body>
+</html>
